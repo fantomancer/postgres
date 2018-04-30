@@ -419,8 +419,8 @@ g_cube_penalty(PG_FUNCTION_ARGS)
 
 	ud = cube_union_v0(DatumGetNDBOXP(origentry->key),
 					   DatumGetNDBOXP(newentry->key));
-	rt_cube_size(ud, &tmp1);
-	rt_cube_size(DatumGetNDBOXP(origentry->key), &tmp2);
+	rt_cube_perimeter(ud, &tmp1);
+	rt_cube_perimeter(DatumGetNDBOXP(origentry->key), &tmp2);
 	*result = (float) (tmp1 - tmp2);
 
 	PG_RETURN_FLOAT8(*result);
@@ -840,29 +840,21 @@ cube_size(PG_FUNCTION_ARGS)
 }
 
 void
-rt_cube_size(NDBOX *a, double *size)
+rt_cube_perimeter(NDBOX *a, double *size)
 {
-	double		result;
 	int			i;
 
 	if (a == (NDBOX *) NULL)
-	{
-		/* special case for GiST */
-		result = 0.0;
-	}
-	else if (IS_POINT(a) || DIM(a) == 0)
-	{
-		/* necessarily has zero size */
-		result = 0.0;
-	}
+		*size = 0.0;
 	else
 	{
-		result = 1.0;
+		*size = 0.0;
 		for (i = 0; i < DIM(a); i++)
-			result *= Abs(UR_COORD(a, i) - LL_COORD(a, i));
+			*size = (*size) + Abs(UR_COORD(a, i) - LL_COORD(a, i));
 	}
-	*size = result;
+	return;
 }
+
 
 /* make up a metric in which one box will be 'lower' than the other
    -- this can be useful for sorting and to determine uniqueness */

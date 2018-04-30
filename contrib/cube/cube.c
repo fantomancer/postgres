@@ -874,19 +874,28 @@ cube_size(PG_FUNCTION_ARGS)
 }
 
 void
-rt_cube_perimeter(NDBOX *a, double *size)
+rt_cube_size(NDBOX *a, double *size)
 {
+	double		result;
 	int			i;
 
 	if (a == (NDBOX *) NULL)
-		*size = 0.0;
+	{
+		/* special case for GiST */
+		result = 0.0;
+	}
+	else if (IS_POINT(a) || DIM(a) == 0)
+	{
+		/* necessarily has zero size */
+		result = 0.0;
+	}
 	else
 	{
-		*size = 0.0;
+		result = 1.0;
 		for (i = 0; i < DIM(a); i++)
-			*size = (*size) + Abs(UR_COORD(a, i) - LL_COORD(a, i));
+			result *= Abs(UR_COORD(a, i) - LL_COORD(a, i));
 	}
-	return;
+	*size = result;
 }
 
 

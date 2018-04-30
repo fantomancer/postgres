@@ -419,9 +419,43 @@ g_cube_penalty(PG_FUNCTION_ARGS)
 
 	ud = cube_union_v0(DatumGetNDBOXP(origentry->key),
 					   DatumGetNDBOXP(newentry->key));
-	rt_cube_perimeter(ud, &tmp1);
-	rt_cube_perimeter(DatumGetNDBOXP(origentry->key), &tmp2);
+	rt_cube_size(ud, &tmp1);
+	rt_cube_size(DatumGetNDBOXP(origentry->key), &tmp2);
 	*result = (float) (tmp1 - tmp2);
+	/* Realm tricks are used only in case of IEEE754 support(IEC 60559) */
+
+	/* REALM 0: No extension is required, volume is zero, return edge	*/
+	/* REALM 1: No extension is required, return nonzero volume			*/
+	/* REALM 2: Volume extension is zero, return nonzero edge extension	*/
+	/* REALM 3: Volume extension is nonzero, return it					*/
+
+	if( *result == 0 )
+	{
+		double tmp3 = tmp1; /* remember entry volume */
+		rt_cube_perimeter(ud, &tmp1);
+		rt_cube_perimeter(DatumGetNDBOX(origentry->key), &tmp2);
+		*result = (float) (tmp1 - tmp2);
+		if( *result == 0 )
+		{
+			if( tmp3 != 0 )
+			{
+				*result = pack_float(tmp3, 1); /* REALM 1 */
+			}
+			else
+			{
+				*result = pack_float(tmp1, 0); /* REALM 0 */
+			}
+		}
+		else
+		{
+			*result = pack_float(*result, 2); /* REALM 2 */
+		}
+	}
+	else
+	{
+		*result = pack_float(*result, 3); /* REALM 3 */
+	}
+
 
 	PG_RETURN_FLOAT8(*result);
 }
@@ -1437,6 +1471,23 @@ distance_1D(double a1, double a2, double b1, double b2)
 	/* the rest are all sorts of intersections */
 	return 0.0;
 }
+
+static float
+pack_float(const float value, const int realm)
+{
+  union {
+    float f;
+    struct { unsigned value:31, sign:1; } vbits;
+    struct { unsigned value:29, realm:2, sign:1; } rbits;
+  } a;
+
+  a.f = value;
+  a.rbits.value = a.vbits.value >> 2;
+  a.rbits.realm = realm;
+
+  return a.f;
+}
+
 
 /* Test if a box is also a point */
 Datum
